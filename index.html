@@ -3,135 +3,283 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>工厂调度机器人仿真</title>
+  <title>智能工厂物流调度仿真</title>
   <style>
+    :root {
+      --bg: #0d1117;
+      --panel: rgba(13, 19, 27, 0.86);
+      --panel-2: rgba(255, 255, 255, 0.04);
+      --line: rgba(120, 160, 200, 0.16);
+      --text: #e6edf3;
+      --muted: #8b98a7;
+      --dim: #5d6b7a;
+      --accent: #36c5f0;
+      --ok: #3fb950;
+      --warn: #f0b429;
+      --err: #f85149;
+      --mono: "JetBrains Mono", Consolas, "Cascadia Mono", monospace;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #1e2126; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+      font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 12px; }
     #app { display: block; width: 100%; height: 100%; }
+    .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-    #ui {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      width: 232px;
-      padding: 14px 16px;
-      background: rgba(24, 27, 32, 0.82);
+    /* ---------- 顶栏 ---------- */
+    #topbar {
+      position: fixed; top: 0; left: 0; right: 0; height: 48px; z-index: 20;
+      display: flex; align-items: center; gap: 14px; padding: 0 14px;
+      background: linear-gradient(180deg, rgba(9, 14, 20, 0.96), rgba(9, 14, 20, 0.82));
+      border-bottom: 1px solid var(--line);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      color: #e8eaed;
-      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-      user-select: none;
-      z-index: 10;
     }
-    #ui h1 {
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 1px;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .brand { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+    .brand .logo { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center;
+      background: linear-gradient(135deg, #1f6feb, #36c5f0); font-weight: 800; font-size: 13px; color: #fff; }
+    .brand b { font-size: 14px; letter-spacing: 0.5px; }
+    .brand small { display: block; color: var(--muted); font-size: 10px; letter-spacing: 1.5px; }
+    .clock { font-family: var(--mono); font-size: 18px; color: var(--accent); padding: 0 12px;
+      border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 99px;
+      background: rgba(63, 185, 80, 0.12); color: var(--ok); font-size: 11px; white-space: nowrap; }
+    .chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+      box-shadow: 0 0 8px currentColor; }
+    .chip.paused { background: rgba(240, 180, 41, 0.12); color: var(--warn); }
+    .spacer { flex: 1; }
+    .seg { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+    .seg button, .btn {
+      background: transparent; border: 0; color: var(--muted); padding: 6px 10px; cursor: pointer;
+      font: inherit; font-size: 12px; white-space: nowrap;
     }
-    #ui h1::before {
-      content: "";
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #39d353;
-      box-shadow: 0 0 8px #39d353;
-    }
-    .stats {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 10px;
-    }
-    .stats > div {
-      flex: 1;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      padding: 7px 4px;
-      text-align: center;
-    }
-    .stats span {
-      display: block;
-      font-size: 18px;
-      font-weight: 700;
-      color: #7cc4ff;
-    }
-    .stats div:first-child span { color: #56d364; }
-    .stats label {
-      font-size: 11px;
-      color: #9aa0a6;
-    }
-    #robot-list { margin-bottom: 10px; }
-    .robot-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      padding: 3px 2px;
-      color: #c9cdd2;
-    }
-    .robot-row .dot {
-      width: 9px; height: 9px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .robot-row .rname { width: 26px; font-weight: 600; color: #e8eaed; }
-    .robot-row .rstate { flex: 1; color: #9aa0a6; }
-    .robot-row .rstate.busy { color: #7cc4ff; }
-    .robot-row .rstate.wait { color: #ff7b72; }
+    .seg button + button { border-left: 1px solid var(--line); }
+    .seg button:hover, .btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+    .seg button.on { color: #fff; background: rgba(54, 197, 240, 0.18); }
+    .btn { border: 1px solid var(--line); border-radius: 7px; }
+    .btn.primary { color: #fff; background: rgba(31, 111, 235, 0.35); border-color: rgba(54, 197, 240, 0.4); }
 
-    .controls button {
-      width: 100%;
-      margin-bottom: 6px;
-      padding: 7px 0;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.07);
-      color: #e8eaed;
-      font-size: 13px;
-      cursor: pointer;
-      font-family: inherit;
-      transition: background 0.15s;
+    /* ---------- 侧栏 ---------- */
+    .side {
+      position: fixed; top: 58px; bottom: 58px; width: 318px; z-index: 10;
+      display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overflow-x: hidden;
+      scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent;
+      transition: transform 0.25s ease;
     }
-    .controls button:hover { background: rgba(255, 255, 255, 0.14); }
-    .controls .row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #c9cdd2;
-      margin: 8px 2px 0;
+    #left { left: 10px; }
+    #right { right: 10px; }
+    body.hide-panels #left { transform: translateX(-340px); }
+    body.hide-panels #right { transform: translateX(340px); }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px;
+      backdrop-filter: blur(10px); }
+    .card h3 { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 1.2px; margin-bottom: 8px;
+      display: flex; align-items: center; justify-content: space-between; text-transform: uppercase; }
+    .card h3 span { color: var(--dim); font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .kpi { background: var(--panel-2); border-radius: 7px; padding: 7px 8px; border: 1px solid rgba(255,255,255,0.03); }
+    .kpi label { display: block; color: var(--muted); font-size: 10.5px; margin-bottom: 2px; }
+    .kpi .v { font-family: var(--mono); font-size: 18px; font-weight: 600; }
+    .kpi .v small { font-size: 10px; color: var(--muted); font-weight: 400; margin-left: 2px; }
+    .kpi .bar { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+    .kpi .bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
+    #spark { width: 100%; height: 64px; display: block; }
+
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 3px 2px; white-space: nowrap; }
+    tr.robot { cursor: pointer; }
+    tr.robot:hover td { background: rgba(255,255,255,0.04); }
+    tr.robot.sel td { background: rgba(54,197,240,0.12); }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+    .rname { font-family: var(--mono); font-weight: 600; }
+    .mode { color: var(--muted); max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+    .mode.busy { color: #8fd4ff; }
+    .mode.wait { color: var(--warn); }
+    .mode.err { color: var(--err); }
+    .mode.chg { color: var(--ok); }
+    .soc { width: 58px; }
+    .socbar { position: relative; height: 10px; border: 1px solid rgba(255,255,255,0.25); border-radius: 2px; }
+    .socbar i { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1px; }
+    .socv { font-family: var(--mono); color: var(--muted); font-size: 10.5px; width: 30px; text-align: right; }
+    .tid { font-family: var(--mono); color: var(--dim); font-size: 10.5px; }
+
+    .cellrow { display: grid; grid-template-columns: 12px 1fr auto; gap: 6px; align-items: center; padding: 4px 0;
+      border-bottom: 1px dashed rgba(255,255,255,0.05); }
+    .cellrow:last-child { border: 0; }
+    .tower { width: 10px; height: 10px; border-radius: 2px; }
+    .cellrow .t { font-weight: 600; }
+    .cellrow .s { color: var(--muted); font-size: 11px; }
+    .lanes { display: flex; gap: 3px; }
+    .lane { font-family: var(--mono); font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.06); color: var(--muted); }
+    .lane.raw { background: rgba(255,183,77,0.18); color: #ffcc80; }
+    .lane.proc { background: rgba(63,185,80,0.2); color: #7ee787; }
+    .lane.done { background: rgba(54,197,240,0.2); color: #8fd4ff; }
+    .lane.req { background: rgba(240,180,41,0.12); color: var(--warn); }
+
+    .aisle { display: grid; grid-template-columns: 52px 1fr 64px; gap: 6px; align-items: center; padding: 3px 0; }
+    .occ { height: 8px; background: rgba(255,255,255,0.07); border-radius: 4px; overflow: hidden; }
+    .occ i { display: block; height: 100%; background: linear-gradient(90deg, #1f6feb, #36c5f0); }
+    .aisle .cs { color: var(--muted); font-size: 11px; text-align: right; }
+
+    .dock { display: grid; grid-template-columns: 62px 1fr 54px; gap: 6px; align-items: center; padding: 3px 0; }
+    .slots { display: flex; gap: 2px; }
+    .slots i { flex: 1; height: 8px; border-radius: 1px; background: rgba(255,255,255,0.08); }
+    .slots i.f { background: #c98d4e; }
+    .slots.ship i.f { background: #3fb950; }
+
+    .task { display: grid; grid-template-columns: 50px 34px 1fr 46px; gap: 5px; align-items: center; padding: 2px 0; font-size: 11px; }
+    .ttype { font-size: 10px; padding: 0 4px; border-radius: 3px; text-align: center; color: #0d1117; font-weight: 600; }
+    .troute { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trobot { font-family: var(--mono); color: var(--accent); text-align: right; }
+
+    #log { height: 150px; overflow-y: auto; font-size: 11px; scrollbar-width: thin; }
+    #log div { padding: 1.5px 0; color: #b7c2cd; display: flex; gap: 6px; }
+    #log time { font-family: var(--mono); color: var(--dim); flex-shrink: 0; }
+    #log .warn { color: var(--warn); }
+    #log .ok { color: #7ee787; }
+
+    /* ---------- 底部图层开关 ---------- */
+    #layers {
+      position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 15;
+      display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 10px;
+      background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(10px);
     }
-    .controls input[type="range"] { flex: 1; accent-color: #7cc4ff; }
-    .controls input[type="checkbox"] { accent-color: #7cc4ff; }
-    #speed-val { width: 34px; text-align: right; color: #9aa0a6; }
-    .hint {
-      margin-top: 10px;
-      font-size: 11px;
-      color: #6e7278;
-      text-align: center;
+    #layers .lbl { color: var(--dim); padding: 0 4px 0 6px; font-size: 11px; }
+    .tog { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 6px; cursor: pointer;
+      color: var(--muted); border: 1px solid transparent; user-select: none; white-space: nowrap; }
+    .tog input { display: none; }
+    .tog:has(input:checked) { color: #fff; background: rgba(54,197,240,0.14); border-color: rgba(54,197,240,0.3); }
+    .legend { display: flex; gap: 10px; padding: 0 8px; color: var(--muted); font-size: 11px; border-left: 1px solid var(--line); }
+    .legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+    /* ---------- 机器人检查器 ---------- */
+    #inspector {
+      position: fixed; z-index: 16; top: 58px; left: 50%; transform: translateX(-50%);
+      width: 360px; display: none;
+    }
+    #inspector.show { display: block; }
+    #inspector .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    #inspector .head b { font-family: var(--mono); font-size: 15px; }
+    #inspector .head .close { margin-left: auto; cursor: pointer; color: var(--muted); font-size: 16px; padding: 0 4px; }
+    #inspector .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    #inspector .grid div { background: var(--panel-2); border-radius: 6px; padding: 5px 7px; }
+    #inspector .grid label { display: block; color: var(--muted); font-size: 10px; }
+    #inspector .grid span { font-family: var(--mono); font-size: 13px; }
+    #inspector .route { margin-top: 8px; color: var(--muted); font-size: 11.5px; line-height: 1.6; }
+    #inspector .route b { color: var(--text); font-weight: 500; }
+
+    #panels-toggle { display: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 50;
+      color: var(--muted); font-size: 13px; letter-spacing: 1px; transition: opacity 0.4s; }
+
+    @media (max-width: 1200px) {
+      .side { width: 280px; }
+      .legend { display: none; }
+    }
+    @media (max-width: 900px) {
+      #topbar { gap: 8px; padding: 0 8px; overflow-x: auto; }
+      .brand > div:last-child, .clock + .chip, #views { display: none; }
+      .clock { font-size: 14px; padding: 0 6px; }
+      .seg button, .btn { padding: 6px 7px; }
+      #panels-toggle { display: inline-block; }
+      .side { width: calc(100% - 20px); bottom: 64px; }
+      body:not(.show-left) #left { transform: translateX(calc(-100% - 20px)); }
+      body:not(.show-right) #right { transform: translateX(calc(100% + 20px)); }
+      #layers { left: 8px; right: 8px; transform: none; overflow-x: auto; }
+      #inspector { width: calc(100% - 16px); }
     }
   </style>
 </head>
 <body>
-  <div id="ui">
-    <h1>工厂调度机器人</h1>
-    <div class="stats">
-      <div><span id="stat-done">0</span><label>已完成</label></div>
-      <div><span id="stat-active">0</span><label>执行中</label></div>
-      <div><span id="stat-queue">0</span><label>排队中</label></div>
+  <div id="loading">正在构建工厂场景…</div>
+  <header id="topbar">
+    <div class="brand">
+      <div class="logo">IF</div>
+      <div><b>智能工厂物流调度仿真</b><small>AMR FLEET · AS/RS · CNC CELLS</small></div>
     </div>
-    <div id="robot-list"></div>
-    <div class="controls">
-      <button id="btn-pause">⏸ 暂停</button>
-      <button id="btn-task">＋ 生成 3 个任务</button>
-      <label class="row"><input type="checkbox" id="chk-paths" checked /> 显示路径规划</label>
-      <label class="row">速度 <input type="range" id="rng-speed" min="0.5" max="3" step="0.1" value="1" /><span id="speed-val">1.0×</span></label>
+    <div class="clock num" id="clock">08:00:00</div>
+    <span class="chip" id="run-chip">运行中</span>
+    <div class="spacer"></div>
+    <div class="seg" id="views">
+      <button data-view="overview" class="on">总览</button>
+      <button data-view="asrs">立体库</button>
+      <button data-view="cells">加工区</button>
+      <button data-view="docks">月台</button>
+      <button data-view="top">俯视</button>
     </div>
-    <div class="hint">拖拽旋转 · 右键平移 · 滚轮缩放 · 空格暂停</div>
+    <div class="seg" id="speeds">
+      <button data-speed="1" class="on">1×</button>
+      <button data-speed="2">2×</button>
+      <button data-speed="5">5×</button>
+      <button data-speed="10">10×</button>
+    </div>
+    <button class="btn primary" id="btn-pause">⏸ 暂停</button>
+    <button class="btn" id="panels-toggle">☰</button>
+  </header>
+
+  <aside class="side" id="left">
+    <div class="card">
+      <h3>生产 KPI <span id="kpi-span">仿真 0 min</span></h3>
+      <div class="kpis">
+        <div class="kpi"><label>小时产出</label><div class="v" id="k-tph">0<small>托/h</small></div></div>
+        <div class="kpi"><label>累计发货</label><div class="v" id="k-ship">0<small>托</small></div></div>
+        <div class="kpi"><label>加工件数</label><div class="v" id="k-parts">0<small>件</small></div></div>
+        <div class="kpi"><label>平均任务周期</label><div class="v" id="k-lead">—<small>s</small></div></div>
+        <div class="kpi"><label>AMR 利用率</label><div class="v" id="k-util">0<small>%</small></div><div class="bar"><i id="b-util"></i></div></div>
+        <div class="kpi"><label>机床稼动率</label><div class="v" id="k-cell">0<small>%</small></div><div class="bar"><i id="b-cell"></i></div></div>
+        <div class="kpi"><label>立库库存</label><div class="v" id="k-stock">0<small>托</small></div><div class="bar"><i id="b-stock"></i></div></div>
+        <div class="kpi"><label>车队能耗</label><div class="v" id="k-energy">0<small>kWh</small></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>产出趋势 <span>发货托数 / 15 min 滑窗</span></h3>
+      <canvas id="spark"></canvas>
+    </div>
+    <div class="card">
+      <h3>AMR 车队 <span id="fleet-sum"></span></h3>
+      <table><tbody id="fleet"></tbody></table>
+    </div>
+  </aside>
+
+  <aside class="side" id="right">
+    <div class="card">
+      <h3>加工单元 <span>CNC + 六轴机器人</span></h3>
+      <div id="cells"></div>
+    </div>
+    <div class="card">
+      <h3>立体库 AS/RS <span id="asrs-sum"></span></h3>
+      <div id="aisles"></div>
+    </div>
+    <div class="card">
+      <h3>月台 <span>收货 / 发货</span></h3>
+      <div id="docks"></div>
+    </div>
+    <div class="card">
+      <h3>任务队列 <span id="task-sum"></span></h3>
+      <div id="tasks"></div>
+    </div>
+    <div class="card">
+      <h3>事件日志</h3>
+      <div id="log"></div>
+    </div>
+  </aside>
+
+  <div id="layers">
+    <span class="lbl">图层</span>
+    <label class="tog"><input type="checkbox" id="t-path" checked />路径规划</label>
+    <label class="tog"><input type="checkbox" id="t-claim" checked />格预约</label>
+    <label class="tog"><input type="checkbox" id="t-field" checked />安全场</label>
+    <label class="tog"><input type="checkbox" id="t-heat" />热力图</label>
+    <label class="tog"><input type="checkbox" id="t-cut" checked />墙体剖切</label>
+    <div class="legend">
+      <span><i class="dot" style="background:#3fb6ff"></i>运行</span>
+      <span><i class="dot" style="background:#2979ff"></i>负载</span>
+      <span><i class="dot" style="background:#ffd740"></i>移载</span>
+      <span><i class="dot" style="background:#ffc400"></i>等待</span>
+      <span><i class="dot" style="background:#00e676"></i>充电</span>
+      <span><i class="dot" style="background:#ff1744"></i>安全停车</span>
+    </div>
   </div>
+
+  <div id="inspector" class="card"></div>
   <canvas id="app"></canvas>
   <script type="module" src="/src/main.js"></script>
 </body>
